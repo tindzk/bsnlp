@@ -39,6 +39,22 @@ object Streams {
       }
     }
 
+  def seekToMap[F[_]](needle: String,
+                      f: String => String,
+                      buffer: String = ""
+                     )(h: Handle[F, String]): Pull[F, String, Handle[F, String]] =
+    h.receive1 { case (s, h) =>
+      val newBuffer = buffer + s
+      val position = newBuffer.indexOf(needle)
+      if (position == -1) seekToMap(needle, f, newBuffer)(h)
+      else {
+        val str = f(newBuffer.take(position)) +
+          newBuffer.drop(position + needle.length)
+        val newH = if (str.isEmpty) h else h.push1(str)
+        Pull.pure(newH)
+      }
+    }
+
   def echo[F[_]](h: Handle[F, String]): Pull[F, String, Unit] = h.echo
 
   def readUntilResidual[F[_]](needle: String,
@@ -83,5 +99,16 @@ object Streams {
       }
 
     f(h).flatMap(echo[F])
+  }
+
+  def mapLinks[F[_]](f: String => String)
+                    (h: Handle[F, String]): Pull[F, String, Any] = {
+    def f2(h: Handle[F, String]): Pull[F, String, Handle[F, String]] =
+      readUntilResidual[F]("[[")(h).flatMap {
+        case Left(h)  => seekToMap[F]("]]", f)(h).flatMap(f2)
+        case Right(s) => fs2.Pull.pure(s)
+      }
+
+    f2(h).flatMap(echo[F])
   }
 }

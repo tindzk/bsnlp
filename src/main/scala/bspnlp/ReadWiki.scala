@@ -17,13 +17,28 @@ object ReadWiki extends App {
       .runLog
       .right.get.mkString
 
-    // Remove all [[...]] containing colon
-    // Remove ''awk''
-    // Remove <ref>...</ref>
+    val updated2 = fs2.Stream(updated)
+      .pull(outside("<ref>", "</ref>")(_))  // Remove references
+      .runLog
+      .right.get.mkString
 
-    // [[tablica asocjacyjna|tablice asocjacyjne]]
-    // [[Unix|UNIX]]-a
-    updated
+    def linkF(s: String): String =
+      if (s.contains(":")) ""  // Delete all links containing colons (categories)
+      else {
+        // e.g. [[architektura 32-bitowa|32-bitowy]], [[Unix|UNIX]]-a
+        if (s.contains("|")) s.split("|").last
+        else s
+      }
+
+    val updated3 = fs2.Stream(updated2)
+      .pull(mapLinks(linkF)(_))
+      .runLog
+      .right.get.mkString
+
+    // TODO Remove bold and italic text (''', '')
+    // TODO Map URLs, e.g. [http://www.amigaos.net/ Oficjalna strona systemu AmigaOS 4]
+
+    updated3
   }
 
   val cf = compressedFile("../plwiki-latest-pages-articles.xml.bz2")
