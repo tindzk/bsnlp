@@ -13,7 +13,7 @@ object ReadWiki extends App {
     val stream = fs2.Stream(decoded)
     val updated = stream
       .pull(between("""<text xml:space="preserve">""", "</text>"))
-      // .pull(outside("{{", "}}")(_))  // Remove boxes
+      .pull(outside("{{", "}}")(_))  // Remove boxes
       .runLog
       .right.get.mkString
 

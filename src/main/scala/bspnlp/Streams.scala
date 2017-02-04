@@ -41,22 +41,31 @@ object Streams {
 
   def echo[F[_]](h: Handle[F, String]): Pull[F, String, Unit] = h.echo
 
-  def readUntil[F[_]](needle: String,
-                      buffer: String = ""
-                     )(h: Handle[F, String]): Pull[F, String, Handle[F, String]] =
-    h.receive1 { case (s, h) =>
-      val newBuffer = buffer + s
-      if (!newBuffer.contains(needle)) readUntil(needle, newBuffer)(h)
-      else {
-        val i           = newBuffer.indexOf(needle)
-        val after       = newBuffer.take(i)
-        val enqueue     = newBuffer.drop(i + needle.length)
-        val enqueuePull =
-          if (enqueue.isEmpty) Pull.pure(h)
-          else                 Pull.pure(h.push1(enqueue))
-        if (after.isEmpty) enqueuePull
-        else               Pull.output1(after) >> enqueuePull
-      }
+  def readUntilResidual[F[_]](needle: String,
+                              buffer: String = ""
+                             )(h: Handle[F, String]): Pull[F, String, Either[Handle[F, String], Handle[F, String]]] =
+    h.receive1Option {
+      case None         => Pull.pure(Right(h.push1(buffer)))
+      case Some((s, h)) =>
+        val newBuffer = buffer + s
+        if (!newBuffer.contains(needle)) readUntilResidual(needle, newBuffer)(h)
+        else {
+          val i           = newBuffer.indexOf(needle)
+          val after       = newBuffer.take(i)
+          val enqueue     = newBuffer.drop(i + needle.length)
+          val enqueuePull =
+            if (enqueue.isEmpty) Pull.pure(Left(h))
+            else                 Pull.pure(Left(h.push1(enqueue)))
+          if (after.isEmpty) enqueuePull
+          else               Pull.output1(after) >> enqueuePull
+        }
+    }
+
+  def readUntil[F[_]](needle: String)
+                     (h: Handle[F, String]): Pull[F, String, Handle[F, String]] =
+    readUntilResidual(needle)(h).flatMap {
+      case Left(h)  => Pull.pure(h)
+      case Right(_) => Pull.done
     }
 
   def between[F[_]](l: String, r: String)
@@ -66,16 +75,13 @@ object Streams {
       .flatMap(between[F](l, r))
 
   def outside[F[_]](l: String, r: String)
-                   (h: Handle[F, String]): Pull[F, String, Any] =
-    readUntil[F](l)(h)
-      .flatMap(seekTo[F](r))
-      .flatMap(outside[F](l, r))
-
-    // TODO This is inefficient
-    /*h.fold("")(_ + _).flatMap { s =>
-      println(s"outside($s)")
-      if (!s.contains(l) || !s.contains(r)) echo(h)
-      else {
+                   (h: Handle[F, String]): Pull[F, String, Any] = {
+    def f(h: Handle[F, String]): Pull[F, String, Handle[F, String]] =
+      readUntilResidual[F](l)(h).flatMap {
+        case Left(h)  => seekTo[F](r)(h).flatMap(f)
+        case Right(s) => fs2.Pull.pure(s)
       }
-    }*/
+
+    f(h).flatMap(echo[F])
+  }
 }

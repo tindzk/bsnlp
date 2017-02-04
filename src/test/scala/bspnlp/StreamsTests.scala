@@ -79,7 +79,7 @@ class StreamsTests extends FunSuite {
   test("outside (2)") {
     // Should not lead to a stack overflow
     assert(fs2.Stream(
-      "{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}b"
-    ).pull(outside("{{", "}}")(_)).runLog.right.get == Vector("b"))
+      "1{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}{{aa}}2"
+    ).pull(outside("{{", "}}")(_)).runLog.right.get == Vector("1", "2"))
   }
 }
