@@ -3,45 +3,61 @@ package bspnlp
 import fs2.{Handle, Pull, Task, io, text}
 import pl.metastack.metaweb.HtmlHelpers
 
+import scala.collection.mutable.ListBuffer
+
 object ReadWiki extends App {
   import Streams._
 
   def mapEntities[F[_]](h: Handle[F, Char]): Pull[F, (Char, Char), Any] = ???
 
   // e.g. [[abc]], [[architektura 32-bitowa|32-bitowy]], [[Unix|UNIX]]-a
-  def internalLink(s: String): String =
-    if (s.contains(":")) ""  // Delete all links containing colons (i.e. categories, articles in other languages)
-    else if (s.contains("|")) s.split("\\|").tail.mkString("|")
-    else s
+  // Delete all links containing colons (i.e. categories, articles in other languages)
+  def internalLink(s: String): Option[Entity] =
+    if (s.contains(":")) None
+    else if (!s.contains("|")) Some(Entity(s, s))
+    else {
+      val split = s.split("\\|")
+      Some(Entity(split.tail.mkString("|"), split.head))
+    }
 
   // e.g. [http://www.example.org link name]
   def externalLink(s: String): String =
     if (s.contains(" ")) s.split(" ").tail.mkString(" ")
     else ""
 
-  def article(input: String): String = {
+  case class Entity(text: String, base: String)
+
+  def article(input: String): (String, List[Entity]) = {
+    val entities = ListBuffer.empty[Entity]
+
     val decoded = HtmlHelpers.decodeText(input)
 
     // Use Task as a workaround to prevent stack overflows
-    fs2.Stream.eval(fs2.Task.delay(decoded))
+    val text = fs2.Stream.eval(fs2.Task.delay(decoded))
       .pull(between("""<text xml:space="preserve">""", "</text>"))
-      .pull(outside("<ref", "</ref>")(_))  // Remove references, like <ref name="..."> and <ref>
-      .pull(outside("<!--", "-->")(_))  // Remove comments
-      .pull(outside("<source", "</source>")(_))  // Remove source codes
-      .pull(outside("<timeline>", "</timeline>")(_))
-      .pull(outside("<syntaxhighlight", "</syntaxhighlight>")(_))  // Remove source codes
-      .pull(outside("{{", "}}")(_))  // Remove boxes
-      .pull(outside("{|", "|}")(_))  // Remove tables
-      .pull(mapContent("[[", "]]", internalLink)(_))
-      .pull(mapContent("[", "]", externalLink)(_))
-      .pull(mapContent("<div", "</div>", identity)(_))
-      .pull(mapContent("<small>", "</small>", identity)(_))
-      .pull(mapContent("<nowiki>", "</nowiki>", identity)(_))
-      .pull(mapContent("<u>", "</u>", identity)(_))  // Underlined
-      .pull(mapContent("<sub>", "</sub>", s => s"_{$s}")(_))  // Subscript
-      .pull(mapContent("<sup>", "</sup>", s => s"^{$s}")(_))  // Superscript
-      .pull(mapContent("'''", "'''", identity)(_))  // Bold
-      .pull(mapContent("''", "''", identity)(_))  // Italic
+      .pull(outside("<ref", "</ref>"))  // Remove references, like <ref name="..."> and <ref>
+      .pull(outside("<!--", "-->"))  // Remove comments
+      .pull(outside("<source", "</source>"))  // Remove source codes
+      .pull(outside("<timeline>", "</timeline>"))
+      .pull(outside("<syntaxhighlight", "</syntaxhighlight>"))  // Remove source codes
+      .pull(outside("{{", "}}"))  // Remove boxes
+      .pull(outside("{|", "|}"))  // Remove tables
+      .pull(mapContent("<div", "</div>", identity))
+      .pull(mapContent("<blockquote>", "</blockquote>", identity))
+      .pull(mapContent("<small>", "</small>", identity))
+      .pull(mapContent("<code>", "</code>", s => s"`$s`"))
+      .pull(mapContent("<nowiki>", "</nowiki>", identity))
+      .pull(mapContent("<u>", "</u>", identity))  // Underlined
+      .pull(mapContent("<sub>", "</sub>", s => s"_{$s}"))  // Subscript
+      .pull(mapContent("<sup>", "</sup>", s => s"^{$s}"))  // Superscript
+      .pull(mapContent("'''", "'''", identity))  // Bold
+      .pull(mapContent("''", "''", identity))  // Italic
+      .pull(mapContent("[[", "]]", l => {
+        val ent = internalLink(l)
+        ent.foreach(entities += _)
+        ent.fold("")(_.text)
+      }))
+      .pull(mapContent("[", "]", externalLink))
       .runLog
       .unsafeRun
       .mkString
@@ -50,6 +66,8 @@ object ReadWiki extends App {
     // TODO Replace <br />, <br>
     // TODO Remove all remaining HTML tags, e.g. <center><gallery>... </gallery></center>
     // TODO outside(), mapContent() do not support nesting
+
+    (text, entities.toList)
   }
 
   val cf = compressedFile("../plwiki-latest-pages-articles.xml.bz2")
