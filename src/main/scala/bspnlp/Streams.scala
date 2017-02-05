@@ -101,14 +101,21 @@ object Streams {
     f(h).flatMap(echo[F])
   }
 
+  // See also https://github.com/functional-streams-for-scala/fs2-cats/blob/master/shared/src/main/scala/fs2/interop/cats/Instances.scala#L64
+  def tailRecM[F[_], A, B](a: A)(f: A => Pull[F, String, Either[A, B]]): Pull[F, String, B] =
+    f(a).flatMap {
+      case Left(nextA) => tailRecM(nextA)(f)
+      case Right(b)    => fs2.Pull.pure(b)
+    }
+
   def mapLinks[F[_]](f: String => String)
                     (h: Handle[F, String]): Pull[F, String, Any] = {
-    def f2(h: Handle[F, String]): Pull[F, String, Handle[F, String]] =
+    def iter(h: Handle[F, String]): Pull[F, String, Either[Handle[F, String], Handle[F, String]]] =
       readUntilResidual[F]("[[")(h).flatMap {
-        case Left(h)  => seekToMap[F]("]]", f)(h).flatMap(f2)
-        case Right(s) => fs2.Pull.pure(s)
+        case Left(h)  => seekToMap[F]("]]", f)(h).map(Left(_))
+        case Right(s) => fs2.Pull.pure(Right(s))
       }
 
-    f2(h).flatMap(echo[F])
+    tailRecM(h)(iter).flatMap(echo[F])
   }
 }
