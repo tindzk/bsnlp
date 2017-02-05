@@ -64,19 +64,36 @@ object ReadWiki extends App {
       .trim
 
     // TODO Replace <br />, <br>
-    // TODO Remove all remaining HTML tags, e.g. <center><gallery>... </gallery></center>
+    // TODO Remove all remaining HTML tags, e.g. <center><gallery>...</gallery></center>
     // TODO outside(), mapContent() do not support nesting
 
     (text, entities.toList)
   }
 
+  def articleToChars(article: (String, List[Entity])): (List[(Char, Boolean)]) = {
+    val (text, entities) = article
+
+    // TODO This will not work if there are multiple occurrences or the entity text
+    // occurs within other words
+    val ents = entities.map { ent =>
+      val i = text.indexOf(ent.text)
+      (i, i + ent.text.length)
+    }
+
+    text.toList.zipWithIndex.map { case (c, i) =>
+      if (ents.exists { case (l, r) => Range(l, r).contains(i) }) (c, true)
+      else (c, false)
+    }
+  }
+
   val cf = compressedFile("../plwiki-latest-pages-articles.xml.bz2")
   val pages =
-    io.readInputStream[Task](Task.now(cf), 4096)
+    io.readInputStream(Task.now(cf), 4096)
       .through(text.utf8Decode)
       .pull(between("<page>", "</page>")(_).flatMap(echo))
-      .take(100)
+      .take(5)
       .map(article)
+      .map(articleToChars)
       .runLog
       .unsafeRun()
 
