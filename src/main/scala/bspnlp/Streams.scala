@@ -108,11 +108,11 @@ object Streams {
       case Right(b)    => fs2.Pull.pure(b)
     }
 
-  def mapLinks[F[_]](f: String => String)
-                    (h: Handle[F, String]): Pull[F, String, Any] = {
+  def mapContent[F[_]](l: String, r: String, f: String => String)
+                      (h: Handle[F, String]): Pull[F, String, Any] = {
     def iter(h: Handle[F, String]): Pull[F, String, Either[Handle[F, String], Handle[F, String]]] =
-      readUntilResidual[F]("[[")(h).flatMap {
-        case Left(h)  => seekToMap[F]("]]", f)(h).map(Left(_))
+      readUntilResidual[F](l)(h).flatMap {
+        case Left(h)  => seekToMap[F](r, f)(h).map(Left(_))
         case Right(s) => fs2.Pull.pure(Right(s))
       }
 

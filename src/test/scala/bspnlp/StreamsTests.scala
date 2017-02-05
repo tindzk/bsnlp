@@ -1,6 +1,7 @@
 package bspnlp
 
 import org.scalatest.FunSuite
+import pl.metastack.metaweb.HtmlHelpers
 
 class StreamsTests extends FunSuite {
   import Streams._
@@ -83,14 +84,14 @@ class StreamsTests extends FunSuite {
     ).pull(outside("{{", "}}")(_)).runLog.right.get == Vector("1", "2"))
   }
 
-  test("mapLinks") {
-    assert(fs2.Stream("[[test]]").pull(mapLinks(_ => "")).runLog.right.get == Vector(""))
-    assert(fs2.Stream("a[[test]]b").pull(mapLinks(_ => "")).runLog.right.get == Vector("a", "b"))
-    assert(fs2.Stream("a[[test]]b").pull(mapLinks(_ + "2")).runLog.right.get == Vector("a", "test2b"))
-    assert(fs2.Stream("a[[1]][[2]][[3]]b").pull(mapLinks(_ + "a")).runLog.right.get == Vector("a", "1a", "2a", "3ab"))
+  test("mapContent") {
+    assert(fs2.Stream("[[test]]").pull(mapContent("[[", "]]", _ => "")).runLog.right.get == Vector(""))
+    assert(fs2.Stream("a[[test]]b").pull(mapContent("[[", "]]", _ => "")).runLog.right.get == Vector("a", "b"))
+    assert(fs2.Stream("a[[test]]b").pull(mapContent("[[", "]]", _ + "2")).runLog.right.get == Vector("a", "test2b"))
+    assert(fs2.Stream("a[[1]][[2]][[3]]b").pull(mapContent("[[", "]]", _ + "a")).runLog.right.get == Vector("a", "1a", "2a", "3ab"))
   }
 
-  test("mapLinks (2)") {
+  test("mapContent (2)") {
     val s =
       """
         |'''AmigaOS''' – [[system operacyjny]] opracowany przez firmę [[Commodore International]] dla produkowanych przez nią komputerów [[Amiga]]. Wersja 1.0 została wydana w [[1985 w informatyce|1985]] roku, wraz z premierą komputera [[Amiga 1000]].
@@ -119,6 +120,11 @@ class StreamsTests extends FunSuite {
     // TODO Causes stack overflow
     // assert(fs2.Stream(s).pull(mapLinks(_ => "")).runLog.right.get.nonEmpty)
 
-    assert(fs2.Stream.eval(fs2.Task.delay(s)).pull(mapLinks(_ => "")).runLog.unsafeRun.nonEmpty)
+    assert(fs2.Stream.eval(fs2.Task.delay(s)).pull(mapContent("[[", "]]", _ => "")).runLog.unsafeRun.nonEmpty)
+  }
+
+  test("decodeText") {
+    assert(HtmlHelpers.decodeText("PowerPC 603e od 160 do 240&nbsp;MHz") ==
+      "PowerPC 603e od 160 do 240\u00A0MHz")
   }
 }
