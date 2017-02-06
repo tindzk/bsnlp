@@ -1,15 +1,10 @@
 package bspnlp
 
-import fs2.{Handle, Pull, Task, io, text}
 import pl.metastack.metaweb.HtmlHelpers
 
 import scala.collection.mutable.ListBuffer
 
-object ReadWiki extends App {
-  import Streams._
-
-  def mapEntities[F[_]](h: Handle[F, Char]): Pull[F, (Char, Char), Any] = ???
-
+object Wiki {
   // e.g. [[abc]], [[architektura 32-bitowa|32-bitowy]], [[Unix|UNIX]]-a
   // Delete all links containing colons (i.e. categories, articles in other languages)
   def internalLink(s: String): Option[Entity] =
@@ -28,6 +23,7 @@ object ReadWiki extends App {
   case class Entity(text: String, base: String)
 
   def article(input: String): (String, List[Entity]) = {
+    import Streams._
     val entities = ListBuffer.empty[Entity]
 
     val decoded = HtmlHelpers.decodeText(input)
@@ -62,6 +58,9 @@ object ReadWiki extends App {
       .unsafeRun
       .mkString
       .trim
+      // Only consider the first 1K characters of an article where the concentration of entities
+      // is higher
+      .take(5000)
 
     // TODO Replace <br />, <br>
     // TODO Remove all remaining HTML tags, e.g. <center><gallery>...</gallery></center>
@@ -75,9 +74,10 @@ object ReadWiki extends App {
 
     // TODO This will not work if there are multiple occurrences or the entity text
     // occurs within other words
-    val ents = entities.map { ent =>
+    val ents = entities.flatMap { ent =>
       val i = text.indexOf(ent.text)
-      (i, i + ent.text.length)
+      if (i == -1) List()
+      else List((i, i + ent.text.length))
     }
 
     text.toList.zipWithIndex.map { case (c, i) =>
@@ -85,17 +85,4 @@ object ReadWiki extends App {
       else (c, false)
     }
   }
-
-  val cf = compressedFile("../plwiki-latest-pages-articles.xml.bz2")
-  val pages =
-    io.readInputStream(Task.now(cf), 4096)
-      .through(text.utf8Decode)
-      .pull(between("<page>", "</page>")(_).flatMap(echo))
-      .take(5)
-      .map(article)
-      .map(articleToChars)
-      .runLog
-      .unsafeRun()
-
-  println(pages)
 }
