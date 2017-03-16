@@ -1,4 +1,4 @@
-package bspnlp
+package bsnlp
 
 import pl.metastack.metaweb.HtmlHelpers
 

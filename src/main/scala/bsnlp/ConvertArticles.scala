@@ -1,4 +1,4 @@
-package bspnlp
+package bsnlp
 
 import java.nio.file.Paths
 

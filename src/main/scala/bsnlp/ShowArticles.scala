@@ -1,4 +1,4 @@
-package bspnlp
+package bsnlp
 
 import fs2.{Task, io, text}
 

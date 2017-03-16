@@ -1,4 +1,4 @@
-name := "bspnlp"
+name := "bsnlp"
 
 version := "1.0"
 

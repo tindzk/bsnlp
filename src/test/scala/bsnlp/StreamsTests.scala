@@ -1,4 +1,4 @@
-package bspnlp
+package bsnlp
 
 import org.scalatest.FunSuite
 import pl.metastack.metaweb.HtmlHelpers
