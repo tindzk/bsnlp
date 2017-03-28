@@ -16,9 +16,11 @@ object Wiki {
     }
 
   // e.g. [http://www.example.org link name]
-  def externalLink(s: String): String =
-    if (s.contains(" ")) s.split(" ").tail.mkString(" ")
+  def externalLink(s: String): String = {
+    val t = s.trim
+    if (t.contains(" ")) t.split(" ").tail.mkString(" ")
     else ""
+  }
 
   case class Entity(text: String, base: String)
 
@@ -58,7 +60,7 @@ object Wiki {
       .unsafeRun
       .mkString
       .trim
-      // Only consider the first 1K characters of an article where the concentration of entities
+      // Only consider the first 5K characters of an article where the concentration of entities
       // is higher
       .take(5000)
 
@@ -69,7 +71,7 @@ object Wiki {
     (text, entities.toList)
   }
 
-  def articleToChars(article: (String, List[Entity])): (List[(Char, Boolean)]) = {
+  def articleToChars(article: (String, List[Entity])): (String, List[Boolean]) = {
     val (text, entities) = article
 
     // TODO This will not work if there are multiple occurrences or the entity text
@@ -80,9 +82,8 @@ object Wiki {
       else List((i, i + ent.text.length))
     }
 
-    text.toList.zipWithIndex.map { case (c, i) =>
-      if (ents.exists { case (l, r) => Range(l, r).contains(i) }) (c, true)
-      else (c, false)
-    }
+    (text, text.indices.toList.map { i =>
+      ents.exists { case (l, r) => Range(l, r).contains(i) }
+    })
   }
 }
