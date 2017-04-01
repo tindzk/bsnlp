@@ -9,7 +9,7 @@ object ConvertArticles extends App {
   import Wiki._
   import Streams._
 
-  val cf = compressedFile("../plwiki-latest-pages-articles.xml.bz2")
+  val cf = compressedFile("dumps/plwiki-latest-pages-articles.xml.bz2")
   val out = Paths.get("data-pl.json")
 
   if (out.toFile.exists()) out.toFile.delete()

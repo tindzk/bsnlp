@@ -6,7 +6,7 @@ object ShowArticles extends App {
   import Streams._
   import Wiki._
 
-  val cf = compressedFile("../plwiki-latest-pages-articles.xml.bz2")
+  val cf = compressedFile("dumps/plwiki-latest-pages-articles.xml.bz2")
   val pages =
     io.readInputStream(Task.now(cf), 4096)
       .through(text.utf8Decode)
