@@ -25,3 +25,5 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-generic",
   "io.circe" %% "circe-parser"
 ).map(_ % Circe)
+
+libraryDependencies += "org.sweble.wikitext" % "swc-engine" % "2.2.0"
