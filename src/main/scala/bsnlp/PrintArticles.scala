@@ -14,10 +14,18 @@ object PrintArticles extends App {
     val pageTitle = PageTitle.make(config, title)
     val pageId    = new PageId(pageTitle, -1)
     val proc      = engine.postprocess(pageId, wikiText, null)
-    val text      = new PlainText(config)
-    text.go(proc.getPage)
+    val plainText = new PlainText(config)
+    plainText.go(proc.getPage)
 
-    (text.sb.toString, text.entities.toList)
+    val t    = plainText.sb.toString
+    val text = fs2.Stream.eval(fs2.Task.delay(t))
+      .pull(outside("<ref", "</ref>"))  // Remove references, like <ref name="..."> and <ref>
+      .runLog
+      .unsafeRun
+      .mkString
+      .trim
+
+    (text, plainText.entities.toList)
   }
 
   val cf = compressedFile("dumps/plwiki-latest-pages-articles.xml.bz2")
@@ -26,7 +34,7 @@ object PrintArticles extends App {
     io.readInputStream(Task.now(cf), 4096)
       .through(text.utf8Decode)
       .pull(between("<text xml:space=\"preserve\">", "</text>")(_).flatMap(echo))
-      .drop(20)
+      .drop(25)
       .take(1)
       .map(parse)
       .runLog

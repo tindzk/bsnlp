@@ -11,7 +11,8 @@ object ShowArticles extends App {
     io.readInputStream(Task.now(cf), 4096)
       .through(text.utf8Decode)
       .pull(between("<page>", "</page>")(_).flatMap(echo))
-      .take(100)
+      .drop(25)
+      .take(1)
       .map(article)
       .runLog
       .unsafeRun()

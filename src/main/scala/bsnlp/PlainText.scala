@@ -17,8 +17,6 @@ package bsnlp
   * limitations under the License.
   */
 
-import java.util.regex.Pattern
-
 import de.fau.cs.osr.ptk.common.AstVisitor
 import de.fau.cs.osr.utils.StringUtils.strrep
 import org.sweble.wikitext.engine.PageTitle
@@ -29,10 +27,6 @@ import org.sweble.wikitext.parser.parser.LinkTargetException
 
 import scala.collection.mutable.ArrayBuffer
 
-object PlainText {
-  val WordSplit = Pattern.compile("\\s+")
-}
-
 class PlainText(private val config: WikiConfig) extends AstVisitor[WtNode] {
   var sb = new StringBuilder()
   val line = new StringBuilder()
@@ -40,8 +34,6 @@ class PlainText(private val config: WikiConfig) extends AstVisitor[WtNode] {
   /** True once we are no longer at the beginning of the document */
   var pastBeginning = false
   var needNewlines = 0
-  var needSpace = false
-  var noWrap = false
   val entities = ArrayBuffer.empty[(String, String)]
 
   /** This method is called by go() after visitation has finished */
@@ -62,9 +54,9 @@ class PlainText(private val config: WikiConfig) extends AstVisitor[WtNode] {
   def visit(e: WtUnorderedList): Unit = iterate(e)
   def visit(e: WtOrderedList): Unit = iterate(e)
   def visit(item: WtListItem): Unit = {
-    wantNewLine(1)
-    write("* ")
+    write("*")
     iterate(item)
+    wantNewLine(1)
   }
 
   def visit(p: EngPage): Unit = iterate(p)
@@ -81,7 +73,7 @@ class PlainText(private val config: WikiConfig) extends AstVisitor[WtNode] {
     }
 
   def visit(wtUrl: WtUrl): Unit = {
-    if (!wtUrl.getProtocol.isEmpty) {
+    if (wtUrl.getProtocol.nonEmpty) {
       write(wtUrl.getProtocol)
       write(":")
     }
@@ -121,26 +113,17 @@ class PlainText(private val config: WikiConfig) extends AstVisitor[WtNode] {
     finishLine()
 
     val saveSb = sb
-    val saveNoWrap = noWrap
     sb = new StringBuilder()
-    noWrap = true
     iterate(s.getHeading)
     finishLine()
     val title = sb.toString.trim()
     sb = saveSb
 
-    wantNewLine(2)
     write((0 until s.getLevel).map(_ => '#').mkString + " " + title)
-    wantNewLine(1)
-
-    noWrap = saveNoWrap
     iterate(s.getBody)
   }
 
-  def visit(p: WtParagraph): Unit = {
-    iterate(p)
-    wantNewLine(2)
-  }
+  def visit(p: WtParagraph): Unit = iterate(p)
 
   def visit(hr: WtHorizontalRule): Unit = {
     wantNewLine(1)
@@ -164,9 +147,6 @@ class PlainText(private val config: WikiConfig) extends AstVisitor[WtNode] {
   def wantNewLine(num: Int): Unit =
     if (pastBeginning && num > needNewlines) needNewlines = num
 
-  def wantSpace(): Unit =
-    if (pastBeginning) needSpace = true
-
   def finishLine(): Unit = {
     sb.append(line.toString)
     line.setLength(0)
@@ -176,29 +156,13 @@ class PlainText(private val config: WikiConfig) extends AstVisitor[WtNode] {
     finishLine()
     sb.append(strrep('\n', num))
     needNewlines = 0
-    needSpace = false
   }
 
-  def writeWord(s: String): Unit = {
-    if (needSpace && needNewlines <= 0) line.append(' ')
+  def write(s: String): Unit = {
     if (needNewlines > 0) writeNewlines(needNewlines)
-    needSpace = false
     pastBeginning = true
     line.append(s)
   }
-
-  def write(s: String): Unit =
-    if (s.nonEmpty) {
-      if (Character.isSpaceChar(s.head)) wantSpace()
-
-      val words = PlainText.WordSplit.split(s).toList
-      words.zipWithIndex.foreach { case (word, i) =>
-        writeWord(word)
-        if (i != words.length - 1) wantSpace()
-      }
-
-      if (Character.isSpaceChar(s.last)) wantSpace()
-    }
 
   def write(cs: Array[Char]): Unit = write(String.valueOf(cs))
 }
